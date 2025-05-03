@@ -1,0 +1,61 @@
+.payment-container {
+    padding: 20px;
+    background: #f9f9f9;
+    border-radius: 8px;
+    max-width: 500px;
+    margin: auto;
+  }
+  
+  .payment-methods {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  
+  .payment-methods button {
+    padding: 10px;
+    background-color: #3498db;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  
+  .payment-methods button.active {
+    background-color: #2980b9;
+  }
+  
+  .credit-card-form label {
+    display: block;
+    margin-bottom: 10px;
+  }
+  
+  .credit-card-form input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+  }
+  
+  .payment-button {
+    width: 100%;
+    padding: 10px;
+    background-color: #27ae60;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  
+  .payment-button:hover {
+    background-color: #2ecc71;
+  }
+  
+  .error {
+    color: #e74c3c;
+    margin-bottom: 20px;
+  }
+  

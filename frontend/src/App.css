@@ -1,0 +1,39 @@
+/* Añade estos estilos adicionales */
+.loading {
+  text-align: center;
+  margin-top: 50px;
+  font-size: 1.2rem;
+}
+
+.auth-links {
+  margin-top: 20px;
+}
+
+.auth-links p {
+  margin: 5px 0;
+}
+
+/* Mejora para mensajes de error */
+.error {
+  color: #d32f2f;
+  background-color: #fde0e0;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  font-size: 0.9rem;
+}
+
+/* Mejora para mensajes de éxito */
+.success-message {
+  text-align: center;
+  color: #388e3c;
+  padding: 20px;
+  background-color: #f0f8f0;
+  border-radius: 8px;
+  max-width: 500px;
+  margin: 50px auto;
+}
+
+.success-message h2 {
+  color: #2e7d32;
+}

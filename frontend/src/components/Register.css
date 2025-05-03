@@ -1,0 +1,165 @@
+/* Estilos base */
+.auth-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: #f8f9fa;
+    padding: 20px;
+  }
+  
+  .register-form {
+    width: 100%;
+    max-width: 450px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    padding: 30px;
+    margin: 20px;
+  }
+  
+  .register-form h2 {
+    color: #2d3748;
+    text-align: center;
+    margin-bottom: 1.5rem;
+    font-size: 1.8rem;
+  }
+  
+  /* Formulario */
+  .form-group {
+    margin-bottom: 1.5rem;
+  }
+  
+  .form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #4a5568;
+    font-weight: 500;
+  }
+  
+  .form-group input {
+    width: 100%;
+    padding: 12px 15px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: all 0.3s;
+  }
+  
+  .form-group input:focus {
+    border-color: #4299e1;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.2);
+  }
+  
+  /* Botón */
+  .register-btn {
+    width: 100%;
+    padding: 12px;
+    background: #4299e1;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.3s;
+  }
+  
+  .register-btn:hover {
+    background: #3182ce;
+  }
+  
+  .register-btn:disabled {
+    background: #cbd5e0;
+    cursor: not-allowed;
+  }
+  
+  /* Mensajes */
+  .error-message {
+    background: #fff5f5;
+    color: #e53e3e;
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+  }
+  
+  .password-requirements {
+    color: #718096;
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+  }
+  
+  .password-requirements ul {
+    padding-left: 1.2rem;
+    margin-top: 0.3rem;
+  }
+  
+  /* Éxito */
+  .success-message {
+    text-align: center;
+    padding: 20px;
+  }
+  
+  .success-message h2 {
+    color: #38a169;
+    margin-bottom: 1rem;
+  }
+  
+  .success-message p {
+    color: #4a5568;
+    margin-bottom: 0.5rem;
+  }
+  
+  .success-icon {
+    font-size: 3rem;
+    color: #38a169;
+    margin-bottom: 1rem;
+    display: block;
+  }
+  
+  .success-btn {
+    display: inline-block;
+    padding: 12px 24px;
+    background: #38a169;
+    color: white;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: background 0.3s;
+    margin-top: 1rem;
+  }
+  
+  .success-btn:hover {
+    background: #2f855a;
+  }
+  
+  /* Enlaces */
+  .auth-links {
+    text-align: center;
+    margin-top: 1.5rem;
+    color: #718096;
+  }
+  
+  .auth-links a {
+    color: #4299e1;
+    text-decoration: none;
+    font-weight: 500;
+  }
+  
+  .auth-links a:hover {
+    text-decoration: underline;
+  }
+  
+  /* Responsive */
+  @media (max-width: 480px) {
+    .auth-container {
+      padding: 10px;
+    }
+    
+    .register-form {
+      padding: 20px;
+      margin: 10px;
+    }
+  }
