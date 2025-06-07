@@ -1,86 +1,122 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ref, onValue } from 'firebase/database';
+import { auth, database } from '../firebase';
+import axios from 'axios';
+import './Payment.css';
 
 const Payment = () => {
   const navigate = useNavigate();
-  const [paymentMethod, setPaymentMethod] = useState('');
-  const [amount, setAmount] = useState(0);
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCVV, setCardCVV] = useState('');
-  const [error, setError] = useState('');
+  const [cartItems, setCartItems] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [totalAmount, setTotalAmount] = useState(0);
+  const [loading, setLoading] = useState(true);
 
-  const handlePayment = () => {
-    if (!paymentMethod) {
-      setError('Por favor, elige un método de pago.');
+  // Obtener usuario autenticado
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        setCurrentUser(user);
+      } else {
+        navigate('/login');
+      }
+    });
+    return () => unsubscribe();
+  }, [navigate]);
+
+  // Obtener datos del carrito
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const cartRef = ref(database, `users/${currentUser.uid}/cart`);
+    const unsubscribe = onValue(cartRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const items = Object.entries(data).map(([key, value]) => ({
+          id: key,
+          ...value
+        }));
+        setCartItems(items);
+
+        const total = items.reduce(
+          (sum, item) => sum + item.price * item.quantity,
+          0
+        );
+        setTotalAmount(total);
+      } else {
+        setCartItems([]);
+        setTotalAmount(0);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser]);
+
+  // Crear transacción con backend
+  const handlePay = async () => {
+    if (totalAmount <= 0) {
+      alert('El carrito está vacío.');
       return;
     }
 
-    if (paymentMethod === 'creditCard') {
-      if (!cardNumber || !cardExpiry || !cardCVV) {
-        setError('Por favor, completa los detalles de la tarjeta.');
-        return;
-      }
+    try {
+      const idToken = await currentUser.getIdToken(); // Token de Firebase
 
-      console.log('Realizando pago con tarjeta de crédito...');
+      const response = await axios.post(
+        'http://localhost:8000/api/payment/create-transaction/',
+        {
+          amount: totalAmount,
+          // Podrías enviar también los productos si lo deseas
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+          },
+        }
+      );
+
+      const { token, url } = response.data;
+
+      // Redirigir al formulario de pago de Transbank
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = url;
+
+      const tokenInput = document.createElement('input');
+      tokenInput.type = 'hidden';
+      tokenInput.name = 'token_ws';
+      tokenInput.value = token;
+
+      form.appendChild(tokenInput);
+      document.body.appendChild(form);
+      form.submit();
+
+    } catch (error) {
+      console.error('Error al crear la transacción:', error);
+      alert('Error al procesar el pago.');
     }
-
-    console.log('Pago realizado con éxito');
-    navigate('/dashboard'); // Redirigir al dashboard u otra página post-pago
   };
+
+  if (loading) return <p>Cargando...</p>;
 
   return (
     <div className="payment-container">
-      <h1>Pagar</h1>
-      <div className="payment-methods">
-        <button 
-          onClick={() => setPaymentMethod('creditCard')}
-          className={paymentMethod === 'creditCard' ? 'active' : ''}
-        >
-          Tarjeta de Crédito
-        </button>
-      </div>
-
-      {paymentMethod === 'creditCard' && (
-        <div className="credit-card-form">
-          <label>
-            Número de tarjeta:
-            <input 
-              type="text" 
-              value={cardNumber} 
-              onChange={(e) => setCardNumber(e.target.value)} 
-              placeholder="1234 5678 1234 5678"
-            />
-          </label>
-          <label>
-            Expiración:
-            <input 
-              type="text" 
-              value={cardExpiry} 
-              onChange={(e) => setCardExpiry(e.target.value)} 
-              placeholder="MM/AA"
-            />
-          </label>
-          <label>
-            CVV:
-            <input 
-              type="text" 
-              value={cardCVV} 
-              onChange={(e) => setCardCVV(e.target.value)} 
-              placeholder="123"
-            />
-          </label>
-        </div>
+      <h2>Resumen del carrito</h2>
+      {cartItems.length === 0 ? (
+        <p>Tu carrito está vacío.</p>
+      ) : (
+        <ul>
+          {cartItems.map((item) => (
+            <li key={item.id}>
+              {item.name} x {item.quantity} = ${item.price * item.quantity}
+            </li>
+          ))}
+        </ul>
       )}
-
-      {error && <p className="error">{error}</p>}
-
-      <div className="amount">
-        <h3>Monto: ${amount}</h3>
-      </div>
-
-      <button onClick={handlePayment} className="payment-button">
-        Realizar Pago
+      <h3>Total: ${totalAmount}</h3>
+      <button onClick={handlePay} disabled={cartItems.length === 0}>
+        Pagar con Transbank
       </button>
     </div>
   );

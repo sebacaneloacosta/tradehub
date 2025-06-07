@@ -133,3 +133,19 @@ from firebase_admin import credentials
 
 cred = credentials.Certificate("C:/Users/canel/Desktop/tradehub/backend/firebase-adminsdk.json")
 firebase_admin.initialize_app(cred)
+
+# Transbank Configuration
+TRANSBANK = {
+    'COMMERCE_CODE': '597055555532',  # Código de comercio de prueba
+    'API_KEY': '597055555532',        # API key para Webpay Plus (en modo test, es igual al commerce code)
+    'ENVIRONMENT': 'TEST',            # Cambiar a 'PRODUCTION' si pasas a producción
+}
+
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'api.firebase_auth.FirebaseAuthentication', 
+    ),
+}
+
+TRANSBANK_RETURN_URL = 'http://localhost:3000/dashboard'  # o URL frontend para confirmación

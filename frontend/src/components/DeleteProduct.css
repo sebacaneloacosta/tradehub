@@ -1,0 +1,39 @@
+.delete-product-container {
+    display: inline-block;
+  }
+  
+  .confirmation-dialog {
+    background: white;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  }
+  
+  .confirmation-dialog p {
+    margin-bottom: 1rem;
+  }
+  
+  .confirmation-buttons {
+    display: flex;
+    gap: 0.5rem;
+  }
+  
+  .delete-btn {
+    background: #ff4444;
+    color: white;
+  }
+  
+  .confirm-delete-btn {
+    background: #ff4444;
+    color: white;
+  }
+  
+  .cancel-delete-btn {
+    background: #f0f0f0;
+  }
+  
+  .error-message {
+    color: #ff4444;
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+  }

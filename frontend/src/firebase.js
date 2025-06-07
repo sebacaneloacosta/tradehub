@@ -17,6 +17,7 @@ import {
 const firebaseConfig = {
   apiKey: "AIzaSyA03M9P-xAkiz-Y7rkBc4YM0HhbYZLbW8U",
   authDomain: "tradehub-project.firebaseapp.com",
+  databaseURL: "https://tradehub-project-default-rtdb.firebaseio.com/",
   projectId: "tradehub-project",
   storageBucket: "tradehub-project.firebasestorage.app",
   messagingSenderId: "328061985780",
@@ -40,15 +41,22 @@ const googleProvider = new GoogleAuthProvider();
 const registerUser = async (email, password, displayName) => {
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+
     await updateProfile(userCredential.user, {
       displayName: displayName
     });
+
     await sendEmailVerification(userCredential.user);
+
+    // 🔒 Cerrar sesión después de registrar y enviar verificación
+    await signOut(auth);
+
     return { success: true, user: userCredential.user };
   } catch (error) {
     return { success: false, error: error.message };
   }
 };
+
 
 // Función para login con email/password
 const loginWithEmail = async (email, password) => {

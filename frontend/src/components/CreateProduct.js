@@ -1,77 +1,161 @@
 import React, { useState } from 'react';
-import { database, ref, set, auth } from '../firebase'; // Asegúrate de que 'auth' esté exportado desde firebase.js
-import './CreateProduct.css'; // Estilos opcionales para el modal
+import { ref, push, set } from 'firebase/database';
+import { database, auth } from '../firebase';
+import './CreateProduct.css';
 
 const CreateProduct = ({ onProductCreated, onClose }) => {
-  const [productName, setProductName] = useState('');
-  const [productDescription, setProductDescription] = useState('');
-  const [productPrice, setProductPrice] = useState('');
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    price: '',
+    stock: '',
+    category: 'general',
+    image_url: ''
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const user = auth.currentUser;
+    setIsLoading(true);
+    setError(null);
 
-    if (!user) {
-      alert('Debes iniciar sesión para crear un producto.');
-      return;
-    }
+    try {
+      if (!auth.currentUser) throw new Error('Debes iniciar sesión');
 
-    const productId = Date.now().toString(); // ID único basado en timestamp
-    const productRef = ref(database, 'products/' + productId);
+      if (!formData.name.trim()) throw new Error('El nombre no puede estar vacío');
+      if (!formData.description.trim()) throw new Error('La descripción no puede estar vacía');
 
-    await set(productRef, {
-      name: productName,
-      description: productDescription,
-      price: productPrice,
-      createdBy: user.uid, // 👈 Guardamos el UID del usuario
-    });
+      const priceNum = Number(formData.price);
+      const stockNum = Number(formData.stock);
 
-    // Notificar al componente padre
-    if (onProductCreated) {
-      onProductCreated({
-        id: productId,
-        name: productName,
-        description: productDescription,
-        price: productPrice,
-        createdBy: user.uid,
+      if (isNaN(priceNum) || priceNum <= 0) throw new Error('El precio debe ser un número mayor a 0');
+      if (isNaN(stockNum) || stockNum < 0) throw new Error('El stock debe ser un número igual o mayor a 0');
+
+      // Usar push para id único
+      const productsRef = ref(database, 'products');
+      const newProductRef = push(productsRef);
+
+      await set(newProductRef, {
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        price: priceNum,
+        stock: stockNum,
+        category: formData.category,
+        image_url: formData.image_url.trim(),
+        created_at: new Date().toISOString(),
+        seller_uid: auth.currentUser.uid,
+        status: 'active'
       });
-    }
 
-    // Limpiar formulario y cerrar
-    setProductName('');
-    setProductDescription('');
-    setProductPrice('');
-    if (onClose) onClose();
+      if (onProductCreated) onProductCreated({ id: newProductRef.key, ...formData });
+
+      // Limpiar formulario tras éxito
+      setFormData({
+        name: '',
+        description: '',
+        price: '',
+        stock: '',
+        category: 'general',
+        image_url: ''
+      });
+
+      if (onClose) onClose();
+
+    } catch (err) {
+      setError(err.message);
+      console.error("Error creating product:", err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="create-product-overlay">
       <div className="create-product-container">
-        <h2>Publicar producto a la venta</h2>
+        <button onClick={onClose} className="close-btn">×</button>
+        <h2>Informacion del articulo</h2>
+        
+        {error && <div className="error-message">{error}</div>}
+
         <form onSubmit={handleSubmit}>
           <input
             type="text"
-            placeholder="Nombre del Producto"
-            value={productName}
-            onChange={(e) => setProductName(e.target.value)}
+            name="name"
+            placeholder="Nombre"
+            value={formData.name}
+            onChange={handleChange}
             required
           />
+
           <textarea
-            placeholder="Descripción del Producto"
-            value={productDescription}
-            onChange={(e) => setProductDescription(e.target.value)}
+            name="description"
+            placeholder="Descripción detallada"
+            value={formData.description}
+            onChange={handleChange}
             required
+            rows={4}
           />
+
+          <div className="form-row">
+            <input
+              type="number"
+              name="price"
+              placeholder="Precio"
+              value={formData.price}
+              onChange={handleChange}
+              min="10"
+              required
+            />
+
+            <input
+              type="number"
+              name="stock"
+              placeholder="Stock disponible"
+              value={formData.stock}
+              onChange={handleChange}
+              min="0"
+              required
+            />
+          </div>
+
+          <select 
+            name="category" 
+            value={formData.category}
+            onChange={handleChange}
+            required
+          >
+            <option value="general">General</option>
+            <option value="electronica">Electrónica</option>
+            <option value="moda/vestuario">Moda/Vestuario</option>
+            <option value="hogar">Hogar</option>
+            <option value="deportes">Deportes</option>
+          </select>
+
           <input
-            type="number"
-            placeholder="Precio del Producto"
-            value={productPrice}
-            onChange={(e) => setProductPrice(e.target.value)}
-            required
+            type="url"
+            name="image_url"
+            placeholder="URL de la imagen (opcional)"
+            value={formData.image_url}
+            onChange={handleChange}
           />
-          <button type="submit">Crear Producto</button>
+
+          <button 
+            type="submit" 
+            disabled={isLoading}
+            className={isLoading ? 'loading' : ''}
+          >
+            {isLoading ? 'Publicando...' : 'Publicar'}
+          </button>
         </form>
-        <button onClick={onClose} className="close-btn">Cerrar</button>
       </div>
     </div>
   );

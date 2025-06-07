@@ -6,6 +6,7 @@ import HomePage from './components/HomePage';
 import Dashboard from './components/Dashboard';
 import Payment from './components/Payment';
 import { auth } from './firebase';
+import './App.css';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -29,7 +30,12 @@ function App() {
   }, []);
 
   if (loading) {
-    return <div className="loading">Cargando...</div>;
+    return (
+      <div className="loading-container">
+        <div className="spinner"></div>
+        <p>Cargando...</p>
+      </div>
+    );
   }
 
   return (

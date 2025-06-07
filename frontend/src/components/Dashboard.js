@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import { auth } from '../firebase';
+import React, { useEffect, useState, useMemo } from 'react';
+import { auth, database } from '../firebase';
 import { signOut } from 'firebase/auth';
+import { ref, onValue, push, set, remove } from 'firebase/database';
 import { useNavigate } from 'react-router-dom';
-import { getDatabase, ref, onValue, push, set, remove } from 'firebase/database'; 
+import CreateProduct from './CreateProduct';
+import ProductCard from './ProductCard';
+import CartItem from './CartItem';
 import './Dashboard.css';
-import CreateProduct from './CreateProduct';  // Importa el componente CreateProduct
 
 function Dashboard() {
   const [user, setUser] = useState(null);
@@ -12,12 +14,23 @@ function Dashboard() {
   const [activeTab, setActiveTab] = useState('inicio');
   const [showCreateProductForm, setShowCreateProductForm] = useState(false);
   const [products, setProducts] = useState([]);
-  const [publicProducts, setPublicProducts] = useState([]);
-  const [cart, setCart] = useState([]);  // Estado para el carrito
+  const [cart, setCart] = useState([]);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState(null);
   const navigate = useNavigate();
 
+  // Separar productos propios y públicos
+  const [userProducts, publicProducts] = useMemo(() => {
+    if (!user?.uid) return [[], []];
+    return products.reduce(([userProds, publicProds], product) => {
+      return product.seller_uid === user.uid
+        ? [[...userProds, product], publicProds]
+        : [userProds, [...publicProds, product]];
+    }, [[], []]);
+  }, [products, user?.uid]);
+
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+    const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
       if (currentUser) {
         setUser(currentUser);
       } else {
@@ -26,27 +39,22 @@ function Dashboard() {
       setLoading(false);
     });
 
-    const db = getDatabase();
-    const productsRef = ref(db, 'products/');
-    onValue(productsRef, (snapshot) => {
+    const productsRef = ref(database, 'products/');
+    const unsubscribeProducts = onValue(productsRef, (snapshot) => {
       const data = snapshot.val();
-      if (data) {
-        const allProducts = Object.keys(data).map(key => ({
-          id: key,
-          ...data[key]
-        }));
-        const userProducts = allProducts.filter(product => product.createdBy === user?.uid);
-        setProducts(userProducts);
-        const otherProducts = allProducts.filter(product => product.createdBy !== user?.uid);
-        setPublicProducts(otherProducts);
-      } else {
-        setProducts([]);
-        setPublicProducts([]);
-      }
+      const loadedProducts = data ? Object.keys(data).map(key => ({
+        id: key,
+        ...data[key],
+        status: data[key].status || 'active'
+      })) : [];
+      setProducts(loadedProducts);
     });
 
-    return () => unsubscribe();
-  }, [navigate, user?.uid]);
+    return () => {
+      unsubscribeAuth();
+      unsubscribeProducts();
+    };
+  }, [navigate]);
 
   const handleLogout = async () => {
     try {
@@ -57,53 +65,117 @@ function Dashboard() {
     }
   };
 
-  const handleAddProductClick = () => {
-    setShowCreateProductForm(true);
+  const handleAddProduct = async (newProduct) => {
+    try {
+      const productsRef = ref(database, 'products');
+      const newProductRef = push(productsRef);
+      await set(newProductRef, {
+        ...newProduct,
+        seller_uid: user.uid,
+        created_at: new Date().toISOString(),
+        status: 'active'
+      });
+      setShowCreateProductForm(false);
+    } catch (error) {
+      console.error('Error al agregar producto:', error);
+    }
   };
 
-  const handleProductCreated = (newProduct) => {
-    const db = getDatabase();
-    const productsRef = ref(db, 'products/');
-    const newProductRef = push(productsRef);
-    set(newProductRef, newProduct)
-      .then(() => {
-        setShowCreateProductForm(false);
-      })
-      .catch((error) => {
-        console.error('Error al agregar producto:', error);
-      });
-  };
-
-  const handleDeleteProduct = (productId) => {
-    const db = getDatabase();
-    const productRef = ref(db, `products/${productId}`);
-    remove(productRef)
-      .then(() => {
-        setProducts(products.filter(product => product.id !== productId));
-      })
-      .catch((error) => {
-        console.error('Error al eliminar el producto:', error);
-      });
+  const handleDeleteProduct = async (productId) => {
+    try {
+      const productRef = ref(database, `products/${productId}`);
+      await remove(productRef);
+    } catch (error) {
+      console.error('Error al eliminar producto:', error);
+    }
   };
 
   const handleAddToCart = (product) => {
-    setCart([...cart, product]);
+    setCart(prevCart => {
+      const existingItem = prevCart.find(item => item.id === product.id);
+      if (existingItem) {
+        return prevCart.map(item =>
+          item.id === product.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        );
+      }
+      return [...prevCart, { ...product, quantity: 1 }];
+    });
   };
 
   const handleRemoveFromCart = (productId) => {
-    setCart(cart.filter(item => item.id !== productId));
+    setCart(prevCart => prevCart.filter(item => item.id !== productId));
   };
 
-  const handleCheckout = () => {
-    // Redirigir a la pestaña de "Carrito"
-    setActiveTab('carrito');
+  const updateCartItemQuantity = (productId, newQuantity) => {
+    if (newQuantity < 1) return;
+    
+    setCart(prevCart => 
+      prevCart.map(item => 
+        item.id === productId 
+          ? { ...item, quantity: newQuantity } 
+          : item
+      )
+    );
+  };
+
+  const totalCartAmount = useMemo(() => {
+    return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+  }, [cart]);
+
+  const handleCheckout = async () => {
+    if (cart.length === 0) {
+      setPaymentError('Tu carrito está vacío');
+      return;
+    }
+
+    setPaymentLoading(true);
+    setPaymentError(null);
+
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('http://127.0.0.1:8000/api/payment/create-transaction/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          cart: cart.map(item => ({
+            product_name: item.name,
+            quantity: item.quantity,
+          })),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al crear la transacción');
+      }
+
+      // Redirigir a la página de pago de Transbank
+      if (data.url && data.token) {
+        // Guardar el carrito en localStorage por si necesitamos recuperarlo
+        localStorage.setItem('pendingPaymentCart', JSON.stringify(cart));
+        window.location.href = data.url;
+      } else {
+        throw new Error('No se recibió la URL de pago');
+      }
+    } catch (error) {
+      console.error('Error en el pago:', error);
+      setPaymentError(error.message);
+    } finally {
+      setPaymentLoading(false);
+    }
   };
 
   if (loading) {
     return (
       <div className="loading-screen">
         <div className="loading-spinner"></div>
-        <p>Cargando tu dashboard...</p>
+        <p>Cargando...</p>
       </div>
     );
   }
@@ -126,138 +198,122 @@ function Dashboard() {
         </div>
 
         <nav className="sidebar-nav">
-          <button 
-            className={`nav-item ${activeTab === 'inicio' ? 'active' : ''}`}
-            onClick={() => setActiveTab('inicio')}
-          >
-            Inicio
-          </button>
-          <button 
-            className={`nav-item ${activeTab === 'productos' ? 'active' : ''}`}
-            onClick={() => setActiveTab('productos')}
-          >
-            Mis Productos
-          </button>
-          <button 
-            className={`nav-item ${activeTab === 'publicados' ? 'active' : ''}`}
-            onClick={() => setActiveTab('publicados')}
-          >
-            Publicaciones
-          </button>
-          <button 
-            className={`nav-item ${activeTab === 'carrito' ? 'active' : ''}`}
-            onClick={() => setActiveTab('carrito')}
-          >
-            Carrito
-          </button>
-          <button className="logout-btn" onClick={handleLogout}>
-            Cerrar Sesión
-          </button>
+          {['inicio', 'productos', 'publicados', 'carrito'].map((tab) => (
+            <button
+              key={tab}
+              className={`nav-item ${activeTab === tab ? 'active' : ''}`}
+              onClick={() => setActiveTab(tab)}
+            >
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </button>
+          ))}
         </nav>
+        <button className="logout-btn" onClick={handleLogout}>
+          Cerrar Sesión
+        </button>
       </div>
 
       {/* Main Content */}
       <div className="dashboard-content">
         <header className="content-header">
           <h1>
-            {activeTab === 'inicio' && 'Bienvenido a TradeHub'}
-            {activeTab === 'productos' && 'Mis Productos'}
-            {activeTab === 'publicados' && 'Productos Públicos'}
-            {activeTab === 'carrito' && 'Tu Carrito'}
+            {{
+              inicio: 'Bienvenido a TradeHub',
+              productos: 'Mis Publicaciones',
+              publicados: 'Publicaciones Activas',
+              carrito: 'Tu Carrito'
+            }[activeTab]}
           </h1>
-          <button className="add-product-btn" onClick={handleAddProductClick}>
-            Añadir Producto
-          </button>
+          {activeTab === 'productos' && (
+            <button
+              className="add-product-btn"
+              onClick={() => setShowCreateProductForm(true)}
+            >
+              Publicar artículo
+            </button>
+          )}
         </header>
 
         <main className="content-main">
           {activeTab === 'productos' && (
-            <div className="productos-section">
-              <div className="section-header">
-                <h2>Tus publicaciones</h2>
-              </div>
+            <div className="products-section">
+              <h2>Tus publicaciones ({userProducts.length})</h2>
               <div className="products-grid">
-                {products.length === 0 ? (
-                  <p>Aún no has publicado ningún producto</p>
-                ) : (
-                  products.map((product) => (
-                    <div key={product.id} className="product-card">
-                      <img src={product.imageUrl} alt={product.name} className="product-image" />
-                      <h3 className="product-name">{product.name}</h3>
-                      <p className="product-description">{product.description}</p>
-                      <p className="product-price">Precio: ${product.price}</p>
-                      <button
-                        className="delete-product-btn"
-                        onClick={() => handleDeleteProduct(product.id)}
-                      >
-                        Eliminar Producto
-                      </button>
-                    </div>
+                {userProducts.length > 0 ? (
+                  userProducts.map(product => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      onDelete={handleDeleteProduct}
+                      isOwner
+                    />
                   ))
+                ) : (
+                  <p className="empty-message">Aún no has publicado nada</p>
                 )}
               </div>
             </div>
           )}
 
           {activeTab === 'publicados' && (
-            <div className="productos-publicos-section">
-              <div className="section-header">
-                <h2>Publicaciones activas</h2>
-              </div>
+            <div className="products-section">
+              <h2>Publicaciones activas ({publicProducts.length})</h2>
               <div className="products-grid">
-                {publicProducts.length === 0 ? (
-                  <p>No hay publicaciones activas</p>
-                ) : (
-                  publicProducts.map((product) => (
-                    <div key={product.id} className="product-card">
-                      <img src={product.imageUrl} alt={product.name} className="product-image" />
-                      <h3 className="product-name">{product.name}</h3>
-                      <p className="product-description">{product.description}</p>
-                      <p className="product-price">Precio: ${product.price}</p>
-                      <button
-                        className="add-to-cart-btn"
-                        onClick={() => handleAddToCart(product)}
-                      >
-                        Añadir al carrito
-                      </button>
-                    </div>
+                {publicProducts.length > 0 ? (
+                  publicProducts.map(product => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      onAddToCart={handleAddToCart}
+                    />
                   ))
+                ) : (
+                  <p className="empty-message">No hay publicaciones activas en este momento</p>
                 )}
               </div>
             </div>
           )}
 
           {activeTab === 'carrito' && (
-            <div className="carrito-section">
-              <h2>Carrito de compra</h2>
+            <div className="cart-section">
+              <h2>Tu carrito ({cart.length} items)</h2>
+              {paymentError && (
+                <div className="error-message">
+                  {paymentError}
+                </div>
+              )}
               <div className="cart-items">
-                {cart.length === 0 ? (
-                  <p>Tu carrito está vacío</p>
-                ) : (
-                  cart.map((item) => (
-                    <div key={item.id} className="cart-item">
-                      <img src={item.imageUrl} alt={item.name} className="cart-item-image" />
-                      <h3>{item.name}</h3>
-                      <p>Precio: ${item.price}</p>
+                {cart.length > 0 ? (
+                  <>
+                    {cart.map(item => (
+                      <CartItem
+                        key={item.id}
+                        item={item}
+                        onRemove={handleRemoveFromCart}
+                        onUpdateQuantity={updateCartItemQuantity}
+                      />
+                    ))}
+                    <div className="cart-summary">
+                      <h3>Total: ${totalCartAmount.toLocaleString('es-CL')}</h3>
                       <button
-                        className="remove-from-cart-btn"
-                        onClick={() => handleRemoveFromCart(item.id)}
+                        className="checkout-btn"
+                        onClick={handleCheckout}
+                        disabled={paymentLoading}
                       >
-                        Eliminar
+                        {paymentLoading ? 'Procesando...' : 'Realizar pago'}
                       </button>
                     </div>
-                  ))
+                  </>
+                ) : (
+                  <p className="empty-message">Tu carrito está vacío</p>
                 )}
               </div>
-              <button className="checkout-btn" onClick={handleCheckout}>
-                Realizar pago
-              </button>
             </div>
           )}
 
           {showCreateProductForm && (
             <CreateProduct
-              onProductCreated={handleProductCreated}
+              onSubmit={handleAddProduct}
               onClose={() => setShowCreateProductForm(false)}
             />
           )}

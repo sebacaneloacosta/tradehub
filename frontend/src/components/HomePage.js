@@ -7,7 +7,7 @@ function HomePage() {
     <div className="home-container">
       <header className="hero-section">
         <h1>Bienvenido a TradeHub</h1>
-        <p>La plataforma líder para intercambio de productos</p>
+        <p>La plataforma ideal para publicar la venta de tus productos</p>
         <div className="cta-buttons">
           <Link to="/register" className="btn primary">Regístrate Gratis</Link>
           <Link to="/login" className="btn secondary">Iniciar Sesión</Link>

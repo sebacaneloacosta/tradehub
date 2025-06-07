@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { registerUser } from '../firebase';
+import { getAuth, signOut, updateProfile } from 'firebase/auth';
+import { ref, set } from 'firebase/database';
+import { database } from '../firebase';
 import './Register.css';
 
 function Register() {
@@ -12,16 +15,38 @@ function Register() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  const saveUserToDatabase = (user) => {
+    if (!user) return;
+    const userRef = ref(database, `users/${user.uid}`);
+    return set(userRef, {
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName || displayName || '',
+      createdAt: new Date().toISOString(),
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
-    
+
     try {
       const result = await registerUser(email, password, displayName);
-      
+
       if (result.success) {
-        setSuccess(true);
+        const user = result.user;
+
+        await updateProfile(user, { displayName });
+
+        await saveUserToDatabase({ ...user, displayName });
+
+        const auth = getAuth();
+        await signOut(auth);
+
+        setTimeout(() => {
+          setSuccess(true);
+        }, 300); 
       } else {
         setError(result.error);
       }
@@ -55,19 +80,19 @@ function Register() {
       <div className="register-form">
         <h2>Crear Cuenta</h2>
         {error && <div className="error-message">{error}</div>}
-        
+
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>Nombre Completo</label>
+            <label>Nombre y Apellido</label>
             <input
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               required
-              placeholder="Ej: María González"
+              placeholder="Ej: Fernando Zampedri"
             />
           </div>
-          
+
           <div className="form-group">
             <label>Correo Electrónico</label>
             <input
@@ -75,10 +100,10 @@ function Register() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              placeholder="tucorreo@ejemplo.com"
+              placeholder="alguien@ejemplo.com"
             />
           </div>
-          
+
           <div className="form-group">
             <label>Contraseña</label>
             <input
@@ -87,16 +112,16 @@ function Register() {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength="6"
-              placeholder="••••••••"
+              placeholder="••••••"
             />
             <div className="password-requirements">
               <ul>
                 <li>Mínimo 6 caracteres</li>
-                <li>Recomendado usar mayúsculas y números</li>
+                <li>Usa mayúsculas y números para mayor seguridad</li>
               </ul>
             </div>
           </div>
-          
+
           <button 
             type="submit" 
             className="register-btn"
@@ -105,7 +130,7 @@ function Register() {
             {loading ? 'Registrando...' : 'Crear Cuenta'}
           </button>
         </form>
-        
+
         <div className="auth-links">
           <p>¿Ya tienes cuenta? <Link to="/login">Inicia Sesión</Link></p>
           <p><Link to="/">← Volver al inicio</Link></p>
